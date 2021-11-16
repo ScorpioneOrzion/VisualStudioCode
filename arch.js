@@ -131,8 +131,11 @@ function createRoom(name, description, possibleLocations, textForLocations) {
     }
 }
 
-createRoom("Bedroom", "You are in a bedroom. There is a bed and a door to the north", ["Hallway", "Bed"], ["hallway", "bed"]);
+createRoom("Bedroom", "You are in a bedroom. There is a bed and a door to the north.", ["Hallway", "Bed"], ["Hallway", "Bed"]);
 createRoom("Bed", "You are in a bed. Go to sleep?", ["Bedroom", "Dream"], ["No", "Yes"]);
+
+player.currentRoom = "Bedroom";
+displayRoom()
 
 // create a function that displays where the player is
 function displayRoom() {
@@ -166,21 +169,30 @@ function displayRoom() {
         // @type {Array<htmlElement>}
         let locations = [];
         if (rooms[player.currentRoom].textForLocations[0] === "No" || rooms[player.currentRoom].textForLocations[0] === "Yes") {
-            locations.push(addText("No"));
-            locations.push(addText("Yes"));
+            locations.push(addText("&#160;&#160;&#160;No"));
+            locations.push(addText("&#160;&#160;&#160;Yes"));
         } else {
-            addText("You can go to :");
+            addText("You can go to:");
             for (let i = 0; i < rooms[player.currentRoom].possibleLocations.length; i++) {
-                locations.push(addText(rooms[player.currentRoom].textForLocations[i]));
+                locations.push(addText("&#160;&#160;&#160;" + rooms[player.currentRoom].textForLocations[i]));
             }
         }
 
         for (let i = 0; i < locations.length; i++) {
-            locations[i].addEventListener("click", function () {
+            const func = function () {
                 if (rooms[player.currentRoom].goto(rooms[player.currentRoom].possibleLocations[i])) {
+                    for (let j = 0; j < locations.length; j++) {
+                        if (locations[j] !== this) {
+                            locations[j].parentNode.removeChild(locations[j]);
+                        } else {
+                            removeEventListener("click", func);
+                        }
+                    }
                     displayRoom();
                 }
-            });
+            }
+
+            locations[i].addEventListener("click", func);
         }
     }
 }
