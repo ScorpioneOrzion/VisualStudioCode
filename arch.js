@@ -1,14 +1,5 @@
 import { loadData, saveData, clearData } from "./encription.js";
 
-// create a function that can be used to change the inventory of the player
-function changeInventory(item, amount) {
-    if (item === "money") {
-        player.money += amount;
-    } else {
-        player.inventory[item] += amount;
-    }
-}
-
 // create a function that can add document elements to the page
 function addElement(element, parent, text) {
     let newElement = document.createElement(element);
@@ -64,7 +55,6 @@ const rooms = {}
 const player = {
     currentRoom: "",
     inventory: {
-        money: 0,
         keys: [],
         items: []
     },
@@ -134,8 +124,12 @@ function createRoom(name, description, possibleLocations, textForLocations) {
 createRoom("Bedroom", "You are in a bedroom. There is a bed and a door to the north.", ["Hallway", "Bed"], ["Hallway", "Bed"]);
 createRoom("Bed", "You are in a bed. Go to sleep?", ["Bedroom", "Dream"], ["No", "Yes"]);
 
-player.currentRoom = "Bedroom";
-displayRoom()
+function init() {
+  player.currentRoom = "Bedroom";
+  displayRoom()
+}
+
+init();
 
 // create a function that displays where the player is
 function displayRoom() {
