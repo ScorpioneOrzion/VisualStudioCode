@@ -1,4 +1,5 @@
 import { loadData, saveData, clearData } from "./encription.js";
+import { createRoom, player, rooms, Key, removeKeyOrItems, addKeyOrItems } from "./data";
 
 // create a function that can add document elements to the page
 function addElement(element, parent, text) {
@@ -49,78 +50,6 @@ window.addEventListener("wheel", function (e) {
     checkScroll();
 })
 
-// gamePlay
-
-const rooms = {}
-const player = {
-    currentRoom: "",
-    inventory: {
-        keys: [],
-        items: []
-    },
-    health: 100,
-    maxHealth: 100,
-}
-
-class Collectable {
-    constructor(name, description, value) {
-        this.name = name;
-        this.description = description;
-        this.value = value;
-    }
-}
-
-class Item extends Collectable {
-    constructor(name, description, value, use) {
-        super(name, description, value);
-        this.use = use;
-    }
-}
-
-class Key extends Collectable {
-    constructor(name, description, value, room) {
-        super(name, description, value);
-        this.room = room;
-    }
-}
-
-function addKeyOrItems(...itemOrKeys) {
-    for (let i = 0; i < itemOrKeys.length; i++) {
-        if (itemOrKeys[i] instanceof Key) {
-            player.inventory.keys.push(itemOrKeys[i]);
-        } else if (itemOrKeys[i] instanceof Item) {
-            player.inventory.items.push(itemOrKeys[i]);
-        }
-    }
-}
-
-function removeKeyOrItems(...itemOrKeys) {
-    for (let i = 0; i < itemOrKeys.length; i++) {
-        if (itemOrKeys[i] instanceof Key) {
-            player.inventory.keys.splice(player.inventory.keys.indexOf(itemOrKeys[i]), 1);
-        } else if (itemOrKeys[i] instanceof Item) {
-            player.inventory.items.splice(player.inventory.items.indexOf(itemOrKeys[i]), 1);
-        }
-    }
-}
-
-// create a function that can create a room with a name, description and a list of possible locations it can go to
-function createRoom(name, description, possibleLocations, textForLocations) {
-    rooms[name] = {
-        description: description,
-        possibleLocations: possibleLocations,
-        textForLocations: textForLocations,
-        goto: function (location) {
-            if (this.possibleLocations.includes(location) && location !== this.currentRoom) {
-                player.currentRoom = location;
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-}
-
 createRoom("Bedroom", "You are in a bedroom. There is a bed and a door to the north.", ["Hallway", "Bed"], ["Hallway", "Bed"]);
 createRoom("Bed", "You are in a bed. Go to sleep?", ["Bedroom", "Dream"], ["No", "Yes"]);
 
@@ -137,7 +66,7 @@ function displayRoom() {
         let nextRoom = false;
         for (let i = 0; i < rooms[player.currentRoom].possibleLocations.length; i++) {
             if (rooms[player.currentRoom].possibleLocations[i].every(itemOrKey => {
-                itemOrKey instanceof Key ? player.inventory.keys.includes(itemOrKey.name) : player.inventory.items.includes(itemOrKey.name) && (itemOrKey.min <= player.inventory[itemOrKey.name].amount && itemOrKey.max >= player.inventory[itemOrKey.name].amount);
+                itemOrKey.isKey ? player.inventory.keys.includes(itemOrKey.name) : player.inventory.items.includes(itemOrKey.name) && (itemOrKey.min <= player.inventory[itemOrKey.name].amount && itemOrKey.max >= player.inventory[itemOrKey.name].amount);
             })) {
                 for (const action of itemOrKey.actions) {
                     if (action.remove === true) {
