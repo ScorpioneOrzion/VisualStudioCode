@@ -1,5 +1,5 @@
 import { loadData, saveData, clearData } from "./encription.js";
-import { createRoom, createRoomCondition, player, rooms, removeKeyOrItems, addKeyOrItems } from "./data";
+import { createRoom, createCondition, createAction, player, rooms, removeKeyOrItems, addKeyOrItems } from "./data";
 
 // create a function that can add document elements to the page
 function addElement(element, parent, text) {
@@ -119,3 +119,4 @@ function displayRoom() {
     }
   }
 }
+

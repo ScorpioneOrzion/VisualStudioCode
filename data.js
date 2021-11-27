@@ -1,14 +1,8 @@
 // gamePlay
-const rooms = {};
-const player = {
-  currentRoom: "",
-  inventory: {
-    keys: [],
-    items: []
-  },
-  hasKey: name => player.inventory.keys.some(key => key.name === name),
-  hasItem: (name, amount) => player.inventory.items.some(item => item.name === name),
-};
+
+/** @type {Map<string, (Room | Condition)>} */
+const rooms = new Map();
+const player = new Player();
 
 class Inventory {
   constructor(keys, items) {
@@ -68,6 +62,69 @@ class Player {
   hasItem(name, min, max) {
     return this.inventory.hasItem(name, min, max);
   }
+
+  save() {
+    return {
+      currentRoom: this.currentRoom,
+      inventory: this.inventory.save(),
+    };
+  }
+}
+
+class Inventory {
+  constructor(keys, items) {
+    if (Array.isArray(keys)) {
+      this.keys = keys;
+    } else if (keys) {
+      this.keys = [keys];
+    } else {
+      this.keys = [];
+    }
+
+    if (Array.isArray(items)) {
+      this.items = items;
+    } else if (items) {
+      this.items = [items];
+    } else {
+      this.items = [];
+    }
+  }
+
+  save() {
+    return {
+      keys: this.keys.map(key => key.save()),
+      items: this.items.map(item => item.save()),
+    };
+  }
+
+  addKey(key) {
+    this.keys.push(key);
+  }
+
+  addItem(item) {
+    if (this.items.some(i => i.name === item.name)) {
+      this.items.find(i => i.name === item.name).amount += item.amount;
+    } else {
+      this.items.push(item);
+    }
+  }
+
+  removeKey(name) {
+    this.keys = this.keys.filter(key => key.name !== name);
+  }
+
+  removeItem(name, amount) {
+    if (this.items.some(item => item.name === name)) {
+      this.items[name].amount -= amount;
+      if (this.items[name].amount <= 0) {
+        this.items = this.items.filter(item => item.name !== name);
+      }
+    }
+  }
+
+  removeAllItems(name) {
+    this.items = this.items.filter(item => item.name !== name);
+  }
 }
 
 class Collectable {
@@ -80,10 +137,25 @@ class Collectable {
   get isKey() {
     return this instanceof Key;
   }
+
+  save() {
+    let object = {
+      name: this.name,
+      description: this.description,
+      value: this.value,
+    };
+    if (this instanceof Item) {
+      Object.assign(object, {
+        amount: this.amount,
+      });
+    }
+    return object;
+  }
 }
 class Item extends Collectable {
-  constructor(name, description, value) {
+  constructor(name, description, value, amount = 1) {
     super(name, description, value);
+    this.amount = amount;
   }
 }
 class Key extends Collectable {
@@ -93,209 +165,125 @@ class Key extends Collectable {
 }
 
 function addKeyOrItems(...itemOrKeys) {
-  for (let i = 0; i < itemOrKeys.length; i++) {
-    if (itemOrKeys[i] instanceof Key) {
-      player.inventory.keys.push(itemOrKeys[i]);
-    } else if (itemOrKeys[i] instanceof Item) {
-      player.inventory.items.push(itemOrKeys[i]);
+  // use a for of loop to iterate over the array
+  for (let itemOrKey of itemOrKeys) {
+    if (itemOrKey instanceof Key) {
+      player.inventory.addKey(itemOrKey);
+    } else if (itemOrKey instanceof Item) {
+      player.inventory.addItem(itemOrKey);
     }
   }
 }
 function removeKeyOrItems(...itemOrKeys) {
-  for (let i = 0; i < itemOrKeys.length; i++) {
-    if (itemOrKeys[i] instanceof Key) {
-      player.inventory.keys.splice(player.inventory.keys.indexOf(itemOrKeys[i]), 1);
-    } else if (itemOrKeys[i] instanceof Item) {
-      player.inventory.items.splice(player.inventory.items.indexOf(itemOrKeys[i]), 1);
+  for (let itemOrKey of itemOrKeys) {
+    if (itemOrKey instanceof Key) {
+      player.inventory.removeKey(itemOrKey.name);
+    } else if (itemOrKey instanceof Item) {
+      player.inventory.removeItem(itemOrKey.name, itemOrKey.amount);
     }
   }
 }
 
-{// create a function that can create a room with a name, description and a list of possible locations it can go to
-  function createRoom(name, description, possibleLocations, textForLocations) {
-    rooms[name] = {
-      description: description,
-      isCondition: false,
-      possibleLocations: possibleLocations,
-      textForLocations: textForLocations,
-      goto: function (location) {
-        if (this.possibleLocations.includes(location) && location !== this.currentRoom) {
-          player.currentRoom = location;
-          return true;
-        } else {
-          return false;
-        }
-      }
-    };
-  }
-
-  // create a function that can create a room that checks if a certain condition is met
-  // it uses the same structure as the createRoom function
-  // with the following differences:
-  // description is ""
-  // possibleLocations is an array of items or keys
-  // for each item or key, if its an item, check if the player has the item and an amount between min and max
-  // if its instead a key, check if the player has the key
-  // each item or key has an amount of actions that are only executed if the condition is met for all items or keys
-  // the possible actions have the following structure:
-  //   remove: true/false
-  //   add: true/false
-  //   itemAdd: an array of items or keys
-  //   itemRemove: an array of items or keys
-  // if remove is true, remove all items or keys from the inventory listed in itemRemove
-  // if add is true, add all items or keys to the inventory listed in itemAdd
-  // then the player will be able to go to the next room or room condition placed in textForLocations
-  function createRoomCondition(name, possibleLocations, textForLocations) {
-    rooms[name] = {
-      description: "",
-      isCondition: true,
-      possibleLocations: possibleLocations,
-      textForLocations: textForLocations,
-      goto: function (location) {
-        if (this.possibleLocations.every(itemOrKey => {
-          if (itemOrKey.isKey) {
-            return player.inventory.keys.includes(itemOrKey.name);
-          } else {
-            return player.inventory.items.includes(itemOrKey.name) && (itemOrKey.min <= player.inventory[itemOrKey.name].amount && itemOrKey.max >= player.inventory[itemOrKey.name].amount);
-          }
-        })) {
-          for (const action of itemOrKey.actions) {
-            if (action.remove === true) {
-              removeKeyOrItems(...action.itemRemove);
-            }
-            if (action.add === true) {
-              addKeyOrItems(...action.itemAdd);
-            }
-          }
-          player.currentRoom = this.textForLocations[this.possibleLocations.indexOf(location)];
-          return true;
-        } else {
-          return false;
-        }
-      }
-    };
-  }
-}
-
-// create a class that can be used by createRoom and createRoomCondition
-// it has the following structure:
-//   name: a string
-//   description: a string
-//   isCondition: true/false
-//   possibleLocations: an array of items or keys if isCondition is true, else an array of rooms
-//   textForLocations: an array of rooms if isCondition is true, else an array of strings
-// the array of items or keys at possibleLocations has the following structure:
-//   name: a string
-//   isKey: true/false
-//   min: an integer if isKey is false, else undefined
-//   max: an integer if isKey is false, else undefined
-//   actions: an array of actions
-// the array of actions has the following structure:
-//   remove: true/false
-//   add: true/false
-//   itemAdd: an array of items or keys if add is true, else undefined
-//   itemRemove: an array of items or keys if remove is true, else undefined
-// also check if the structure is correct
-// class Room {
-//   #check = (name, description, isCondition, possibleLocations, textForLocations) => {
-//     if (typeof name !== "string") {
-//       throw new Error("name is not a string");
-//     }
-//     if (typeof description !== "string") {
-//       throw new Error("description is not a string");
-//     }
-//     if (typeof isCondition !== "boolean") {
-//       throw new Error("isCondition is not a boolean");
-//     }
-//     if (!Array.isArray(possibleLocations)) {
-//       throw new Error("possibleLocations is not an array");
-//     }
-//     if (!Array.isArray(textForLocations)) {
-//       throw new Error("textForLocations is not an array");
-//     }
-//     if (isCondition) {
-//       if (possibleLocations.some(itemOrKey => !(itemOrKey instanceof Item || itemOrKey instanceof Key))) {
-//         throw new Error("possibleLocations contains an item or key that is not an Item or Key");
-//       }
-//       if (textForLocations.some(room => !(room instanceof Room))) {
-//         throw new Error("textForLocations contains a room that is not a Room");
-//       }
-//     } else {
-//       if (possibleLocations.some(room => !(room instanceof Room))) {
-//         throw new Error("possibleLocations contains a room that is not a Room");
-//       }
-//       if (textForLocations.some(string => typeof string !== "string")) {
-//         throw new Error("textForLocations contains a string that is not a string");
-//       }
-//     }
-//   }
-
-//   constructor(name, description, isCondition, possibleLocations, textForLocations) {
-//     this.#check(...arguments);
-//     this.name = name;
-//     this.description = description;
-//     this.isCondition = isCondition;
-//     this.possibleLocations = possibleLocations;
-//     this.textForLocations = textForLocations;
-//   }
-
-//   goto(location) {
-//     if (this.isCondition) {
-//       for (const itemOrKeys of this.possibleLocations) {
-//         itemOrKeys.every(itemOrKey => {
-//           if (itemOrKey.isKey) {
-//             return player.inventory.keys.includes(itemOrKey.name);
-//           } else {
-//             return player.inventory.items.includes(itemOrKey.name) && (itemOrKey.min <= player.inventory[itemOrKey.name].amount && itemOrKey.max >= player.inventory[itemOrKey.name].amount);
-//           }
-//         });
-//       }
-//     } else {
-
-//     }
-//   }
-
-//   display(addTextFunction) {
-//     if (this.isCondition) {
-
-//     } else {
-//       addTextFunction(this.description);
-//       let locations = [];
-//     }
-//   }
-// }
-
 class BaseRoom {
   constructor(name, description, possibleLocations, textForLocations) {
+    rooms.set(name, this);
     this.name = name;
     this.description = description;
     this.possibleLocations = possibleLocations;
     this.textForLocations = textForLocations;
   }
-
-  display(addTextFunction) {
-    addTextFunction(this.description);
-  }
 }
 
 class Room extends BaseRoom {
   constructor(name, description, possibleLocations, textForLocations) {
-    super(...arguments);
+    super(name, description, possibleLocations, textForLocations);
     this.isCondition = false;
   }
 
   goto(location) {
-    player.currentRoom = this.textForLocations[this.possibleLocations.indexOf(location)];
+    if (this.possibleLocations.includes(location) && location !== this.currentRoom) {
+      player.currentRoom = location;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  display(addTextFunction) {
+    addTextFunction(this.description);
+    // @type {Array<htmlElement>}
+    let locations = [];
+    if (this.textForLocations[0] === "No" || this.textForLocations[0] === "Yes") {
+      locations.push(addTextFunction("&#160;&#160;&#160;No"));
+      locations.push(addTextFunction("&#160;&#160;&#160;Yes"));
+    } else {
+      addTextFunction("You can go to:");
+      for (let i = 0; i < this.possibleLocations.length; i++) {
+        locations.push(addTextFunction("&#160;&#160;&#160;" + this.textForLocations[i]));
+      }
+    }
+
+    for (let i = 0; i < locations.length; i++) {
+      const func = function () {
+        if (this.goto(this.possibleLocations[i])) {
+          for (let j = 0; j < locations.length; j++) {
+            if (j !== i) {
+              locations[j].parentNode.removeChild(locations[j]);
+            } else {
+              removeEventListener("click", func);
+            }
+          }
+
+          rooms.get(player.currentRoom).display(addTextFunction);
+        }
+      }
+      locations[i].addEventListener("click", func);
+    }
   }
 }
 
 class Condition extends BaseRoom {
-  constructor(name, description, possibleLocations, textForLocations) {
-    super(...arguments);
+  constructor(name, possibleLocations, ConditionsForLocations) {
+    super(name, "", possibleLocations, ConditionsForLocations);
     this.isCondition = true;
   }
 
   goto(location) {
+    if (this.possibleLocations.every(itemOrKey => {
+      if (itemOrKey.isKey) {
+        return player.hasKey(itemOrKey.name);
+      } else {
+        return player.hasItem(itemOrKey.name, itemOrKey.min, itemOrKey.max);
+      }
+    })) {
+      for (const action of itemOrKey.actions) {
+        if (action.remove === true) {
+          removeKeyOrItems(...action.itemRemove);
+        }
+        if (action.add === true) {
+          addKeyOrItems(...action.itemAdd);
+        }
+      }
+      player.currentRoom = this.textForLocations[this.possibleLocations.indexOf(location)];
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  display(addTextFunction) {
+    let goToNextRoom = false;
+    for (const location of this.possibleLocations) {
+      if (this.goto(location)) {
+        goToNextRoom = true;
+        break;
+      }
+    }
+    if (goToNextRoom) {
+      rooms.get(player.currentRoom).display(addTextFunction);
+    } else {
+      addTextFunction("You can't go there.");
+    }
   }
 }
 
@@ -306,6 +294,27 @@ class Action {
     this.itemAdd = itemAdd;
     this.itemRemove = itemRemove;
   }
+
+  doActions() {
+    if (this.remove === true) {
+      removeKeyOrItems(...this.itemRemove);
+    }
+    if (this.add === true) {
+      addKeyOrItems(...this.itemAdd);
+    }
+  }
+}
+
+function createRoom(name, description, possibleLocations, textForLocations) {
+  return new Room(name, description, possibleLocations, textForLocations);
+}
+
+function createCondition(name, possibleLocations, ConditionsForLocations) {
+  return new Condition(name, possibleLocations, ConditionsForLocations);
+}
+
+function createAction(remove, add, itemAdd, itemRemove) {
+  return new Action(remove, add, itemAdd, itemRemove);
 }
 
 // export the above functions and variables
@@ -313,7 +322,8 @@ module.exports = {
   rooms: rooms,
   player: player,
   createRoom: createRoom,
-  createRoomCondition: createRoomCondition,
+  createCondition: createCondition,
+  createAction: createAction,
   addKeyOrItems: addKeyOrItems,
   removeKeyOrItems: removeKeyOrItems,
   Key: Key,
